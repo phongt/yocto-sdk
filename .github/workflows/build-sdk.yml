@@ -1,0 +1,189 @@
+name: Build Yocto SDK
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+env:
+  YOCTO_VERSION: "5.0.15"
+  YOCTO_BRANCH: "scarthgap"
+  YOCTO_TAG: "yocto-5.0.15"
+  YOCTO_MACHINE: "qemux86-64"
+  YOCTO_GIT_REVISION: "72983ac391008ebceb45edc7a8f0f6d5f4fe715c"
+  YOCTO_SHA256: "d5336d1ef1dd48b88cb92748c669360901004d458b7786ddc1918da12fef4edd"
+  YOCTO_TARBALL: "poky-72983ac391008ebceb45edc7a8f0f6d5f4fe715c.tar.bz2"
+  YOCTO_TARBALL_URL: "https://downloads.yoctoproject.org/releases/yocto/yocto-5.0.15/poky-72983ac391008ebceb45edc7a8f0f6d5f4fe715c.tar.bz2"
+  YOCTO_TARBALL_URL_MIRROR: "https://mirrors.kernel.org/yocto/yocto/yocto-5.0.15/poky-72983ac391008ebceb45edc7a8f0f6d5f4fe715c.tar.bz2"
+
+jobs:
+  build-sdk:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Step 1 — Free up disk space aggressively
+      - name: Free disk space
+        run: |
+          echo "=== Disk before cleanup ==="
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/share/java
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+          sudo apt-get clean
+          sudo apt-get autoremove -y
+          docker rmi $(docker images -q) 2>/dev/null || true
+          echo "=== Disk after cleanup ==="
+          df -h
+
+      # Step 2 — Restore sstate cache
+      - name: Restore sstate-cache
+        uses: actions/cache@v4
+        with:
+          path: sstate-cache
+          key: yocto-sstate-${{ env.YOCTO_VERSION }}-${{ runner.os }}
+          restore-keys: |
+            yocto-sstate-${{ env.YOCTO_VERSION }}-${{ runner.os }}-
+
+      # Step 3 — Restore downloads cache
+      - name: Restore downloads cache
+        uses: actions/cache@v4
+        with:
+          path: downloads
+          key: yocto-downloads-${{ env.YOCTO_VERSION }}-${{ runner.os }}
+          restore-keys: |
+            yocto-downloads-${{ env.YOCTO_VERSION }}-${{ runner.os }}-
+
+      # Step 4 — Install Yocto dependencies
+      - name: Install Yocto dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gawk wget git diffstat unzip texinfo gcc build-essential \
+            chrpath socat cpio python3 python3-pip python3-pexpect \
+            xz-utils debianutils iputils-ping python3-git \
+            python3-jinja2 libegl1-mesa libsdl1.2-dev \
+            mesa-common-dev zstd liblz4-tool
+          sudo apt-get clean
+
+      # Step 5 — Download Poky release tarball (faster + smaller than git clone)
+      - name: Download Poky tarball
+        run: |
+          echo "=== Downloading Poky ${{ env.YOCTO_VERSION }} ==="
+          # Try primary URL first, fallback to mirror
+          wget --tries=3 --timeout=30 \
+            -O ${{ env.YOCTO_TARBALL }} \
+            ${{ env.YOCTO_TARBALL_URL }} || \
+          wget --tries=3 --timeout=30 \
+            -O ${{ env.YOCTO_TARBALL }} \
+            ${{ env.YOCTO_TARBALL_URL_MIRROR }}
+
+          # Verify sha256
+          echo "${{ env.YOCTO_SHA256 }}  ${{ env.YOCTO_TARBALL }}" | sha256sum -c -
+          echo "=== SHA256 verified ==="
+
+          # Extract
+          tar -xjf ${{ env.YOCTO_TARBALL }}
+
+          # Rename extracted dir to poky for consistency
+          mv poky-${{ env.YOCTO_GIT_REVISION }} poky
+
+          # Remove tarball immediately to save disk
+          rm -f ${{ env.YOCTO_TARBALL }}
+          echo "=== Disk after extract ==="
+          df -h
+
+      # Step 6 — Configure local.conf
+      - name: Configure local.conf
+        run: |
+          cd poky
+          source oe-init-build-env build
+          echo "=== Disk before build ==="
+          df -h
+
+          cat >> conf/local.conf << 'EOF'
+          MACHINE = "${{ env.YOCTO_MACHINE }}"
+
+          # SDK output
+          SDK_ARCHIVE_TYPE = "tar.gz"
+          SDKPATH = "."
+          RELOCATE_SDK = "0"
+
+          # Cache dirs pointing to GitHub Actions cache
+          SSTATE_DIR = "${TOPDIR}/../../sstate-cache"
+          DL_DIR = "${TOPDIR}/../../downloads"
+
+          # Upstream sstate mirror
+          SSTATE_MIRRORS = "file://.* https://sstate.yoctoproject.org/all/PATH;downloadfilename=PATH"
+
+          # Disable hash equivalence server (avoid timeout issues)
+          BB_HASHSERVE = ""
+          BB_SIGNATURE_HANDLER = "OEBasicHash"
+
+          # Upstream source mirror fallback
+          SOURCE_MIRROR_URL = "https://downloads.yoctoproject.org/mirror/sources/"
+          INHERIT += "own-mirrors"
+
+          # Critical: delete work dirs immediately after each task
+          INHERIT += "rm_work"
+          RM_WORK_EXCLUDE = "core-image-minimal"
+
+          # Minimal SDK only
+          TOOLCHAIN_HOST_TASK = "nativesdk-packagegroup-sdk-host"
+          TOOLCHAIN_TARGET_TASK = "packagegroup-core-standalone-sdk-target"
+
+          # Use all available cores
+          BB_NUMBER_THREADS = "2"
+          PARALLEL_MAKE = "-j 2"
+          EOF
+
+      # Step 7 — Build SDK
+      - name: Build SDK
+        run: |
+          cd poky
+          source oe-init-build-env build
+          bitbake core-image-minimal -c populate_sdk
+          echo "=== Disk after build ==="
+          df -h
+
+      # Step 8 — Copy SDK before cleanup
+      - name: Copy SDK output
+        run: |
+          mkdir -p sdk-output
+          cp poky/build/tmp/deploy/sdk/*.tar.gz sdk-output/
+          echo "=== SDK file ==="
+          ls -lh sdk-output/
+
+      # Step 9 — Cleanup build artifacts
+      - name: Cleanup build artifacts
+        run: |
+          echo "=== Disk before cleanup ==="
+          df -h
+          rm -rf poky/build/tmp
+          rm -rf poky
+          rm -rf downloads
+          echo "=== Disk after cleanup ==="
+          df -h
+
+      # Step 10 — Create GitHub Release and upload SDK
+      - name: Create Release and Upload SDK
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: yocto-sdk-${{ env.YOCTO_VERSION }}-${{ github.run_number }}
+          name: Yocto SDK ${{ env.YOCTO_VERSION }} Build ${{ github.run_number }}
+          body: |
+            Yocto SDK ${{ env.YOCTO_VERSION }} for ${{ env.YOCTO_MACHINE }}
+            - Branch: ${{ env.YOCTO_BRANCH }}
+            - Tag: ${{ env.YOCTO_TAG }}
+            - Git Revision: ${{ env.YOCTO_GIT_REVISION }}
+            - Format: tar.gz (relocatable, SDKPATH=".")
+          files: sdk-output/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
