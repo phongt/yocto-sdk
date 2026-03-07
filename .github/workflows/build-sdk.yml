@@ -144,7 +144,7 @@ jobs:
       - name: Copy SDK output
         run: |
           mkdir -p sdk-output
-          cp poky/build/tmp/deploy/sdk/*.tar.gz sdk-output/
+          cp poky/build/tmp/deploy/sdk/*.sh sdk-output/
           echo "=== SDK file ==="
           ls -lh sdk-output/
 
@@ -171,6 +171,6 @@ jobs:
             - Tag: ${{ env.YOCTO_TAG }}
             - Git Revision: ${{ env.YOCTO_GIT_REVISION }}
             - Format: tar.gz (relocatable, SDKPATH=".")
-          files: sdk-output/*.tar.gz
+          files: sdk-output/*.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
