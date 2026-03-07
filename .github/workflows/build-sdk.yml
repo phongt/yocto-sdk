@@ -92,9 +92,6 @@ jobs:
           # Extract
           tar -xjf ${{ env.YOCTO_TARBALL }}
 
-          # Rename extracted dir to poky for consistency
-          mv poky-${{ env.YOCTO_GIT_REVISION }} poky
-
           # Remove tarball immediately to save disk
           rm -f ${{ env.YOCTO_TARBALL }}
           echo "=== Disk after extract ==="
