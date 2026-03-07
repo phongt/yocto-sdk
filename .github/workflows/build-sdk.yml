@@ -108,11 +108,6 @@ jobs:
           cat >> conf/local.conf << 'EOF'
           MACHINE = "${{ env.YOCTO_MACHINE }}"
 
-          # SDK output
-          SDK_ARCHIVE_TYPE = "tar.gz"
-          SDKPATH = "."
-          RELOCATE_SDK = "0"
-
           # Cache dirs pointing to GitHub Actions cache
           SSTATE_DIR = "${TOPDIR}/../../sstate-cache"
           DL_DIR = "${TOPDIR}/../../downloads"
