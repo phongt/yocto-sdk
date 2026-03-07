@@ -130,11 +130,6 @@ jobs:
 
           # Critical: delete work dirs immediately after each task
           INHERIT += "rm_work"
-          RM_WORK_EXCLUDE = "core-image-minimal"
-
-          # Minimal SDK only
-          TOOLCHAIN_HOST_TASK = "nativesdk-packagegroup-sdk-host"
-          TOOLCHAIN_TARGET_TASK = "packagegroup-core-standalone-sdk-target"
 
           # Use all available cores
           BB_NUMBER_THREADS = "2"
