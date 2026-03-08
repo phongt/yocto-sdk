@@ -143,10 +143,11 @@ jobs:
       # Step 8 — Copy SDK before cleanup
       - name: Copy SDK output
         run: |
-          mkdir -p sdk-output
-          cp poky/build/tmp/deploy/sdk/*.sh sdk-output/
+          SDK_DIR="yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+          mkdir -p "$SDK_DIR"
+          cp poky/build/tmp/deploy/sdk/*.sh "$SDK_DIR/"
           echo "=== SDK file ==="
-          ls -lh sdk-output/
+          ls -lh "$SDK_DIR/"
 
       # Step 9 — Cleanup build artifacts
       - name: Cleanup build artifacts
@@ -159,7 +160,15 @@ jobs:
           echo "=== Disk after cleanup ==="
           df -h
 
-      # Step 10 — Create GitHub Release and upload SDK
+      # Step 10 — Create tarball
+      - name: Create SDK tarball
+        run: |
+          SDK_DIR="yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+          tar -czf "$SDK_DIR.tar.gz" "$SDK_DIR"
+          echo "=== SDK tarball created ==="
+          ls -lh "$SDK_DIR.tar.gz"
+
+      # Step 11 — Create GitHub Release and upload SDK
       - name: Create Release and Upload SDK
         uses: softprops/action-gh-release@v1
         with:
@@ -170,6 +179,6 @@ jobs:
             - Branch: ${{ env.YOCTO_BRANCH }}
             - Tag: ${{ env.YOCTO_TAG }}
             - Git Revision: ${{ env.YOCTO_GIT_REVISION }}
-          files: sdk-output/*.sh
+          files: yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
