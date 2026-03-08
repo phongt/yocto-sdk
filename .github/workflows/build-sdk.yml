@@ -125,7 +125,12 @@ jobs:
 
           # Critical: delete work dirs immediately after each task
           INHERIT += "rm_work"
+          IMAGE_INSTALL:append = " libasan libubsan liblsan libtsan"
 
+          TOOLCHAIN_TARGET_TASK:append = " \
+              libasan libubsan liblsan libtsan \
+              libasan-dev libubsan-dev liblsan-dev libtsan-dev \
+          "
           # Use all available cores
           BB_NUMBER_THREADS = "2"
           PARALLEL_MAKE = "-j 2"
