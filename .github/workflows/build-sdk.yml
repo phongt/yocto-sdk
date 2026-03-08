@@ -170,7 +170,6 @@ jobs:
             - Branch: ${{ env.YOCTO_BRANCH }}
             - Tag: ${{ env.YOCTO_TAG }}
             - Git Revision: ${{ env.YOCTO_GIT_REVISION }}
-            - Format: tar.gz (relocatable, SDKPATH=".")
           files: sdk-output/*.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
