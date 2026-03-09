@@ -94,8 +94,8 @@ jobs:
           echo "=== Disk after extract ==="
           df -h
 
-      # Step 6 — Configure local.conf
-      - name: Configure local.conf
+      # Step 6 — Configure local.conf and add layers
+      - name: Configure local.conf and add layers
         run: |
           cd poky
           source oe-init-build-env build
@@ -132,6 +132,9 @@ jobs:
           BB_NUMBER_THREADS = "2"
           PARALLEL_MAKE = "-j 2"
           EOF
+
+          # Add meta-bazel-toolchain layer to bblayers.conf
+          bitbake-layers add-layer ../../meta-bazel-toolchain
 
 
       # Step 7 — Build SDK
