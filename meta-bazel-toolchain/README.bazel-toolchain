@@ -1,0 +1,4 @@
+meta-bazel-toolchain
+=============
+
+The meta-bazel-toolchain layer contains recipes and configuration files for bazel toolchain use cases.

@@ -1,0 +1,1 @@
+inherit bazel_toolchain_patch
