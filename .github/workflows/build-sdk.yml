@@ -136,6 +136,7 @@ jobs:
           PARALLEL_MAKE = "-j 2"
           EOF
 
+
       # Step 7 — Build SDK
       - name: Build SDK
         run: |
@@ -145,16 +146,32 @@ jobs:
           echo "=== Disk after build ==="
           df -h
 
-      # Step 8 — Copy SDK before cleanup
-      - name: Copy SDK output
+      # Step 8 — Build core-image-minimal
+      - name: Build core-image-minimal
+        run: |
+          cd poky
+          source oe-init-build-env build
+          bitbake core-image-minimal
+          echo "=== Disk after image build ==="
+          df -h
+
+      # Step 9 — Copy SDK and image output
+      - name: Copy SDK and image output
         run: |
           SDK_DIR="yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+          IMAGE_DIR="yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+          
           mkdir -p "$SDK_DIR"
-          cp poky/build/tmp/deploy/sdk/*.sh "$SDK_DIR/"
-          echo "=== SDK file ==="
+          cp poky/build/tmp/deploy/sdk/* "$SDK_DIR/"
+          echo "=== SDK files ==="
           ls -lh "$SDK_DIR/"
+          
+          mkdir -p "$IMAGE_DIR"
+          cp poky/build/tmp/deploy/images/${{ env.YOCTO_MACHINE }}/* "$IMAGE_DIR/" 2>/dev/null || true
+          echo "=== Image files ==="
+          ls -lh "$IMAGE_DIR/"
 
-      # Step 9 — Cleanup build artifacts
+      # Step 10 — Cleanup build artifacts
       - name: Cleanup build artifacts
         run: |
           echo "=== Disk before cleanup ==="
@@ -165,16 +182,22 @@ jobs:
           echo "=== Disk after cleanup ==="
           df -h
 
-      # Step 10 — Create tarball
-      - name: Create SDK tarball
+      # Step 11 — Create tarballs
+      - name: Create SDK and image tarballs
         run: |
           SDK_DIR="yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+          IMAGE_DIR="yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+          
           tar -czf "$SDK_DIR.tar.gz" "$SDK_DIR"
           echo "=== SDK tarball created ==="
           ls -lh "$SDK_DIR.tar.gz"
+          
+          tar -czf "$IMAGE_DIR.tar.gz" "$IMAGE_DIR"
+          echo "=== Image tarball created ==="
+          ls -lh "$IMAGE_DIR.tar.gz"
 
-      # Step 11 — Create GitHub Release and upload SDK
-      - name: Create Release and Upload SDK
+      # Step 12 — Create GitHub Release and upload SDK and images
+      - name: Create Release and Upload SDK and images
         uses: softprops/action-gh-release@v1
         with:
           tag_name: yocto-sdk-${{ env.YOCTO_VERSION }}-${{ github.run_number }}
@@ -184,6 +207,8 @@ jobs:
             - Branch: ${{ env.YOCTO_BRANCH }}
             - Tag: ${{ env.YOCTO_TAG }}
             - Git Revision: ${{ env.YOCTO_GIT_REVISION }}
-          files: yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
+          files: |
+            yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
+            yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
