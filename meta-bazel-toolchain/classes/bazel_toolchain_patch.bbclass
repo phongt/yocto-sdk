@@ -15,6 +15,9 @@
 
 POPULATE_SDK_POST_TARGET_COMMAND:append = " bazel_sdk_fix;"
 
+# SSH + root access for development
+IMAGE_FEATURES += "ssh-server-openssh debug-tweaks"
+
 bazel_sdk_fix() {
     SYSROOT="${SDK_OUTPUT}${SDKTARGETSYSROOT}"
 
