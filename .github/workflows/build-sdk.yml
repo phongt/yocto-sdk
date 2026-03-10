@@ -9,7 +9,6 @@ env:
   YOCTO_VERSION: "5.0.15"
   YOCTO_BRANCH: "scarthgap"
   YOCTO_TAG: "yocto-5.0.15"
-  YOCTO_MACHINE: "qemux86-64"
   YOCTO_GIT_REVISION: "72983ac391008ebceb45edc7a8f0f6d5f4fe715c"
   YOCTO_SHA256: "d5336d1ef1dd48b88cb92748c669360901004d458b7786ddc1918da12fef4edd"
   YOCTO_TARBALL: "poky-72983ac391008ebceb45edc7a8f0f6d5f4fe715c.tar.bz2"
@@ -19,6 +18,11 @@ env:
 jobs:
   build-sdk:
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        machine: ["qemux86-64", "qemuarm64"]
+    env:
+      YOCTO_MACHINE: ${{ matrix.machine }}
 
     steps:
       - uses: actions/checkout@v4
