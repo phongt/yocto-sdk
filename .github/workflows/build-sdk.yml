@@ -3,6 +3,7 @@ name: Build Yocto SDK
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
   YOCTO_VERSION: "5.0.15"
@@ -196,8 +197,19 @@ jobs:
           echo "=== Image tarball created ==="
           ls -lh "$IMAGE_DIR.tar.gz"
 
-      # Step 12 — Create GitHub Release and upload SDK and images
+      # Step 12 — Upload artifacts on every push
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yocto-build-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}
+          path: |
+            yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
+            yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
+          retention-days: 30
+
+      # Step 13 — Create GitHub Release (manual trigger only)
       - name: Create Release and Upload SDK and images
+        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: yocto-sdk-${{ env.YOCTO_VERSION }}-${{ github.run_number }}
