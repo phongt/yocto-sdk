@@ -5,7 +5,7 @@
 # the linker runs inside a sandbox and cannot resolve absolute
 # paths like /lib/libm.so.6 from the host filesystem.
 #
-# Usage: inherit bazel_toolchain_patch  (in any image .bbappend)
+# Usage: inherit bazel_toolchain  (in any image .bbappend)
 #
 # Background:
 #   GNU ld treats "=/" prefix in linker scripts as:

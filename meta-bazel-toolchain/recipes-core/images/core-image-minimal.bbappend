@@ -1,1 +1,1 @@
-inherit bazel_toolchain_patch
+inherit bazel_toolchain
