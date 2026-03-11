@@ -18,6 +18,13 @@ POPULATE_SDK_POST_TARGET_COMMAND:append = " bazel_sdk_fix;"
 # SSH + root access for development
 IMAGE_FEATURES += "ssh-server-openssh debug-tweaks"
 
+# append asan and development libs
+IMAGE_INSTALL:append = " libasan libubsan liblsan libtsan"
+
+TOOLCHAIN_TARGET_TASK:append = " \
+    libasan libubsan liblsan libtsan \
+    libasan-dev libubsan-dev liblsan-dev libtsan-dev"
+
 bazel_sdk_fix() {
     SYSROOT="${SDK_OUTPUT}${SDKTARGETSYSROOT}"
 
