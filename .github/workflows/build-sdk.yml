@@ -14,6 +14,7 @@ env:
   YOCTO_TARBALL: "poky-72983ac391008ebceb45edc7a8f0f6d5f4fe715c.tar.bz2"
   YOCTO_TARBALL_URL: "https://downloads.yoctoproject.org/releases/yocto/yocto-5.0.15/poky-72983ac391008ebceb45edc7a8f0f6d5f4fe715c.tar.bz2"
   YOCTO_TARBALL_URL_MIRROR: "https://mirrors.kernel.org/yocto/yocto/yocto-5.0.15/poky-72983ac391008ebceb45edc7a8f0f6d5f4fe715c.tar.bz2"
+  DEB_PACKAGES: "libacl-dev valgrind-dev libcap-dev"
 
 jobs:
   build-sdk:
@@ -174,7 +175,45 @@ jobs:
           echo "=== Image files ==="
           ls -lh "$IMAGE_DIR/"
 
-      # Step 10 — Cleanup build artifacts
+      # Step 10 — Copy and upload development deb packages
+      - name: Copy development packages
+        run: |
+          DEB_DIR="yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+          mkdir -p "$DEB_DIR"
+
+          # Copy deb packages from deploy directory
+          for pkg in ${{ env.DEB_PACKAGES }}; do
+            find poky/build/tmp/deploy/deb -name "$pkg*" -type f -exec cp {} "$DEB_DIR"/ \;
+          done
+
+          echo "=== Development packages copied ==="
+          ls -lh "$DEB_DIR/"
+
+      # Step 11 — Upload libacl-dev package
+      - name: Upload libacl-dev package
+        uses: actions/upload-artifact@v4
+        with:
+          name: yocto-libacl-dev-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}
+          path: yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/libacl-dev*.deb
+          retention-days: 30
+
+      # Step 12 — Upload valgrind-dev package
+      - name: Upload valgrind-dev package
+        uses: actions/upload-artifact@v4
+        with:
+          name: yocto-valgrind-dev-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}
+          path: yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/valgrind-dev*.deb
+          retention-days: 30
+
+      # Step 13 — Upload libcap-dev package
+      - name: Upload libcap-dev package
+        uses: actions/upload-artifact@v4
+        with:
+          name: yocto-libcap-dev-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}
+          path: yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/libcap-dev*.deb
+          retention-days: 30
+
+      # Step 14 — Cleanup build artifacts
       - name: Cleanup build artifacts
         run: |
           echo "=== Disk before cleanup ==="
@@ -185,7 +224,7 @@ jobs:
           echo "=== Disk after cleanup ==="
           df -h
 
-      # Step 11 — Create tarballs
+      # Step 15 — Create tarballs
       - name: Create SDK and image tarballs
         run: |
           SDK_DIR="yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
@@ -199,7 +238,7 @@ jobs:
           echo "=== Image tarball created ==="
           ls -lh "$IMAGE_DIR.tar.gz"
 
-      # Step 12 — Upload artifacts on every push
+      # Step 16 — Upload artifacts
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -209,7 +248,7 @@ jobs:
             yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
           retention-days: 30
 
-      # Step 13 — Create GitHub Release (manual trigger only)
+      # Step 17 — Create GitHub Release (manual trigger only)
       - name: Create Release and Upload SDK and images
         if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
@@ -221,8 +260,14 @@ jobs:
             - Branch: ${{ env.YOCTO_BRANCH }}
             - Tag: ${{ env.YOCTO_TAG }}
             - Git Revision: ${{ env.YOCTO_GIT_REVISION }}
+
+            ## Development Packages Included
+            - ${{ env.DEB_PACKAGES }}
           files: |
             yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
             yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
+            yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/libacl-dev*.deb
+            yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/valgrind-dev*.deb
+            yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/libcap-dev*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
