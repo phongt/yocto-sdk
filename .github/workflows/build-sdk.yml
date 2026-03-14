@@ -110,6 +110,9 @@ jobs:
           cat >> conf/local.conf << 'EOF'
           MACHINE = "${{ env.YOCTO_MACHINE }}"
 
+          # Use deb package format
+          PACKAGE_CLASSES ?= "package_deb"
+
           # Cache dirs pointing to GitHub Actions cache
           SSTATE_DIR = "${TOPDIR}/../../sstate-cache"
           DL_DIR = "${TOPDIR}/../../downloads"
