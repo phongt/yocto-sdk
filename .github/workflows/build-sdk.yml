@@ -140,22 +140,22 @@ jobs:
           bitbake-layers add-layer ../../meta-bazel-toolchain
 
 
-      # Step 7 — Build SDK
-      - name: Build SDK
-        run: |
-          cd poky
-          source oe-init-build-env build
-          bitbake core-image-minimal -c populate_sdk
-          echo "=== Disk after build ==="
-          df -h
-
-      # Step 8 — Build core-image-minimal
+      # Step 7 — Build core-image-minimal
       - name: Build core-image-minimal
         run: |
           cd poky
           source oe-init-build-env build
           bitbake core-image-minimal
           echo "=== Disk after image build ==="
+          df -h
+
+      # Step 8 — Build SDK
+      - name: Build SDK
+        run: |
+          cd poky
+          source oe-init-build-env build
+          bitbake core-image-minimal -c populate_sdk
+          echo "=== Disk after build ==="
           df -h
 
       # Step 9 — Copy SDK and image output
