@@ -19,11 +19,11 @@ POPULATE_SDK_POST_TARGET_COMMAND:append = " bazel_sdk_fix;"
 IMAGE_FEATURES += "ssh-server-openssh debug-tweaks"
 
 # append asan and development libs
-IMAGE_INSTALL:append = " libasan libubsan liblsan libtsan"
+IMAGE_INSTALL:append = " libasan libubsan liblsan libtsan libacl libcap valgrind"
 
 TOOLCHAIN_TARGET_TASK:append = " \
-    libasan libubsan liblsan libtsan \
-    libasan-dev libubsan-dev liblsan-dev libtsan-dev"
+    libasan libubsan liblsan libtsan libacl libcap valgrind \
+    libasan-dev libubsan-dev liblsan-dev libtsan-dev libacl-dev libacl-staticdev libcap-dev"
 
 bazel_sdk_fix() {
     SYSROOT="${SDK_OUTPUT}${SDKTARGETSYSROOT}"
