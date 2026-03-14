@@ -23,7 +23,7 @@ IMAGE_INSTALL:append = " libasan libubsan liblsan libtsan libacl libcap valgrind
 
 TOOLCHAIN_TARGET_TASK:append = " \
     libasan libubsan liblsan libtsan libacl libcap valgrind \
-    libasan-dev libubsan-dev liblsan-dev libtsan-dev libacl-dev libacl-staticdev libcap-dev"
+    libasan-dev libubsan-dev liblsan-dev libtsan-dev libacl-dev libcap-dev"
 
 bazel_sdk_fix() {
     SYSROOT="${SDK_OUTPUT}${SDKTARGETSYSROOT}"
