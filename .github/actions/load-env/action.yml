@@ -1,0 +1,19 @@
+name: Load Shared Environment Variables
+description: Load environment variables from shared config
+
+runs:
+  using: composite
+  steps:
+    - name: Load environment variables from config
+      shell: bash
+      run: |
+        while IFS=: read -r key value; do
+          # Skip empty lines and comments
+          [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+          # Trim whitespace
+          key=$(echo "$key" | xargs)
+          value=$(echo "$value" | xargs)
+          # Export to GITHUB_ENV
+          echo "${key}=${value}" >> $GITHUB_ENV
+          echo "Loaded: ${key}"
+        done < .github/config/env.yml

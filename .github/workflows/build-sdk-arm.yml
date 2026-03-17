@@ -1,0 +1,137 @@
+name: Build Yocto SDK (ARM64)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-sdk-arm:
+    runs-on: ubuntu-22.04
+    env:
+      YOCTO_MACHINE: qemuarm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load environment variables
+        uses: ./.github/actions/load-env
+
+      - name: Setup Yocto Environment
+        uses: ./.github/actions/setup-yocto
+        with:
+          yocto-version: ${{ env.YOCTO_VERSION }}
+          yocto-sha256: ${{ env.YOCTO_SHA256 }}
+          yocto-tarball: ${{ env.YOCTO_TARBALL }}
+          yocto-tarball-url: ${{ env.YOCTO_TARBALL_URL }}
+          yocto-tarball-url-mirror: ${{ env.YOCTO_TARBALL_URL_MIRROR }}
+          yocto-machine: ${{ env.YOCTO_MACHINE }}
+
+      # Step 7 — Build SDK (populate_sdk)
+      - name: Build SDK populate_sdk
+        run: |
+          cd poky
+          source oe-init-build-env build
+          bitbake core-image-minimal -c populate_sdk
+          echo "=== Disk after SDK build ==="
+          df -h
+
+      # Step 8 — Copy SDK output
+      - name: Copy SDK output
+        run: |
+          SDK_DIR="yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+
+          mkdir -p "$SDK_DIR"
+          cp poky/build/tmp/deploy/sdk/* "$SDK_DIR/"
+          echo "=== SDK files ==="
+          ls -lh "$SDK_DIR/"
+
+      # Step 9 — Copy development packages
+      - name: Copy development packages
+        run: |
+          DEB_DIR="yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+          mkdir -p "$DEB_DIR"
+
+          # Copy deb packages from deploy directory
+          for pkg in ${{ env.DEB_PACKAGES }}; do
+            find poky/build/tmp/deploy/deb -name "$pkg*" -type f -exec cp {} "$DEB_DIR"/ \;
+          done
+
+          echo "=== Development packages copied ==="
+          ls -lh "$DEB_DIR/"
+
+      # Step 10 — Upload libacl-dev package
+      - name: Upload libacl-dev package
+        uses: actions/upload-artifact@v4
+        with:
+          name: yocto-libacl-dev-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}
+          path: yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/libacl-dev*.deb
+          retention-days: 30
+
+      # Step 11 — Upload valgrind-dev package
+      - name: Upload valgrind-dev package
+        uses: actions/upload-artifact@v4
+        with:
+          name: yocto-valgrind-dev-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}
+          path: yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/valgrind-dev*.deb
+          retention-days: 30
+
+      # Step 12 — Upload libcap-dev package
+      - name: Upload libcap-dev package
+        uses: actions/upload-artifact@v4
+        with:
+          name: yocto-libcap-dev-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}
+          path: yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/libcap-dev*.deb
+          retention-days: 30
+
+      # Step 13 — Create SDK tarball
+      - name: Create SDK tarball
+        run: |
+          SDK_DIR="yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+
+          tar -czf "$SDK_DIR.tar.gz" "$SDK_DIR"
+          echo "=== SDK tarball created ==="
+          ls -lh "$SDK_DIR.tar.gz"
+
+      # Step 14 — Upload SDK artifacts
+      - name: Upload SDK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}
+          path: yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
+          retention-days: 30
+
+      # Step 15 — Cleanup build artifacts
+      - name: Cleanup build artifacts
+        run: |
+          echo "=== Disk before cleanup ==="
+          df -h
+          rm -rf poky/build/tmp
+          rm -rf poky
+          rm -rf downloads
+          echo "=== Disk after cleanup ==="
+          df -h
+
+      # Step 16 — Create GitHub Release (manual trigger only)
+      - name: Create Release and Upload SDK and images
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: yocto-sdk-${{ env.YOCTO_VERSION }}-${{ github.run_number }}
+          name: Yocto SDK ${{ env.YOCTO_VERSION }} Build ${{ github.run_number }}
+          body: |
+            Yocto SDK ${{ env.YOCTO_VERSION }} for ${{ env.YOCTO_MACHINE }}
+            - Branch: ${{ env.YOCTO_BRANCH }}
+            - Tag: ${{ env.YOCTO_TAG }}
+            - Git Revision: ${{ env.YOCTO_GIT_REVISION }}
+
+            ## Development Packages Included
+            - ${{ env.DEB_PACKAGES }}
+          files: |
+            yocto-sdk-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
+            yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
+            yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/libacl-dev*.deb
+            yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/valgrind-dev*.deb
+            yocto-deb-packages-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}/libcap-dev*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,75 @@
+name: Build Yocto Image (x86-64)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-image-x86:
+    runs-on: ubuntu-22.04
+    env:
+      YOCTO_MACHINE: qemux86-64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load environment variables
+        uses: ./.github/actions/load-env
+
+      - name: Setup Yocto Environment
+        uses: ./.github/actions/setup-yocto
+        with:
+          yocto-version: ${{ env.YOCTO_VERSION }}
+          yocto-sha256: ${{ env.YOCTO_SHA256 }}
+          yocto-tarball: ${{ env.YOCTO_TARBALL }}
+          yocto-tarball-url: ${{ env.YOCTO_TARBALL_URL }}
+          yocto-tarball-url-mirror: ${{ env.YOCTO_TARBALL_URL_MIRROR }}
+          yocto-machine: ${{ env.YOCTO_MACHINE }}
+
+      # Step 7 — Build core-image-minimal
+      - name: Build core-image-minimal
+        run: |
+          cd poky
+          source oe-init-build-env build
+          bitbake core-image-minimal
+          echo "=== Disk after image build ==="
+          df -h
+
+      # Step 8 — Copy image output
+      - name: Copy image output
+        run: |
+          IMAGE_DIR="yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+
+          mkdir -p "$IMAGE_DIR"
+          cp poky/build/tmp/deploy/images/${{ env.YOCTO_MACHINE }}/* "$IMAGE_DIR/" 2>/dev/null || true
+          echo "=== Image files ==="
+          ls -lh "$IMAGE_DIR/"
+
+      # Step 9 — Create image tarball
+      - name: Create image tarball
+        run: |
+          IMAGE_DIR="yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}"
+
+          tar -czf "$IMAGE_DIR.tar.gz" "$IMAGE_DIR"
+          echo "=== Image tarball created ==="
+          ls -lh "$IMAGE_DIR.tar.gz"
+
+      # Step 10 — Upload image artifacts
+      - name: Upload image artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}
+          path: yocto-image-${{ env.YOCTO_VERSION }}-${{ env.YOCTO_MACHINE }}.tar.gz
+          retention-days: 30
+
+      # Step 11 — Cleanup build artifacts
+      - name: Cleanup build artifacts
+        run: |
+          echo "=== Disk before cleanup ==="
+          df -h
+          rm -rf poky/build/tmp
+          rm -rf poky
+          rm -rf downloads
+          echo "=== Disk after cleanup ==="
+          df -h

@@ -1,0 +1,141 @@
+name: Setup Yocto Environment
+description: Setup Yocto build environment with dependencies and Poky
+
+inputs:
+  yocto-version:
+    description: Yocto version
+    required: true
+  yocto-sha256:
+    description: Yocto tarball SHA256
+    required: true
+  yocto-tarball:
+    description: Yocto tarball filename
+    required: true
+  yocto-tarball-url:
+    description: Yocto tarball URL
+    required: true
+  yocto-tarball-url-mirror:
+    description: Yocto tarball mirror URL
+    required: true
+  yocto-machine:
+    description: Yocto machine type
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Step 1 — Free up disk space aggressively
+    - name: Free disk space
+      shell: bash
+      run: |
+        echo "=== Disk before cleanup ==="
+        df -h
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/share/swift
+        sudo rm -rf /usr/share/java
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache
+        sudo apt-get clean
+        sudo apt-get autoremove -y
+        docker rmi $(docker images -q) 2>/dev/null || true
+        echo "=== Disk after cleanup ==="
+        df -h
+
+    # Step 2 — Restore sstate cache
+    - name: Restore sstate-cache
+      uses: actions/cache@v4
+      with:
+        path: sstate-cache
+        key: yocto-sstate-${{ inputs.yocto-version }}-${{ runner.os }}
+        restore-keys: |
+          yocto-sstate-${{ inputs.yocto-version }}-${{ runner.os }}-
+
+    # Step 3 — Restore downloads cache
+    - name: Restore downloads cache
+      uses: actions/cache@v4
+      with:
+        path: downloads
+        key: yocto-downloads-${{ inputs.yocto-version }}-${{ runner.os }}
+        restore-keys: |
+          yocto-downloads-${{ inputs.yocto-version }}-${{ runner.os }}-
+
+    # Step 4 — Install Yocto dependencies
+    - name: Install Yocto dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          gawk wget git diffstat unzip texinfo gcc build-essential \
+          chrpath socat cpio python3 python3-pip python3-pexpect \
+          xz-utils debianutils iputils-ping python3-git \
+          python3-jinja2 libegl1-mesa libsdl1.2-dev \
+          mesa-common-dev zstd liblz4-tool
+        sudo apt-get clean
+
+    # Step 5 — Download Poky release tarball (faster + smaller than git clone)
+    - name: Download Poky tarball
+      shell: bash
+      run: |
+        echo "=== Downloading Poky ${{ inputs.yocto-version }} ==="
+        # Try primary URL first, fallback to mirror
+        wget --tries=3 --timeout=30 \
+          -O ${{ inputs.yocto-tarball }} \
+          ${{ inputs.yocto-tarball-url }} || \
+        wget --tries=3 --timeout=30 \
+          -O ${{ inputs.yocto-tarball }} \
+          ${{ inputs.yocto-tarball-url-mirror }}
+
+        # Verify sha256
+        echo "${{ inputs.yocto-sha256 }}  ${{ inputs.yocto-tarball }}" | sha256sum -c -
+        echo "=== SHA256 verified ==="
+
+        # Extract
+        tar -xjf ${{ inputs.yocto-tarball }}
+
+        # Remove tarball immediately to save disk
+        rm -f ${{ inputs.yocto-tarball }}
+        echo "=== Disk after extract ==="
+        df -h
+
+    # Step 6 — Configure local.conf and add layers
+    - name: Configure local.conf and add layers
+      shell: bash
+      run: |
+        cd poky
+        source oe-init-build-env build
+        echo "=== Disk before build ==="
+        df -h
+
+        cat >> conf/local.conf << 'EOF'
+        MACHINE = "${{ inputs.yocto-machine }}"
+
+        # Use deb package format
+        PACKAGE_CLASSES ?= "package_deb"
+
+        # Cache dirs pointing to GitHub Actions cache
+        SSTATE_DIR = "${TOPDIR}/../../sstate-cache"
+        DL_DIR = "${TOPDIR}/../../downloads"
+
+        # Upstream sstate mirror
+        SSTATE_MIRRORS = "file://.* https://sstate.yoctoproject.org/all/PATH;downloadfilename=PATH"
+
+        # Disable hash equivalence server (avoid timeout issues)
+        BB_HASHSERVE = ""
+        BB_SIGNATURE_HANDLER = "OEBasicHash"
+
+        # Upstream source mirror fallback
+        SOURCE_MIRROR_URL = "https://downloads.yoctoproject.org/mirror/sources/"
+        INHERIT += "own-mirrors"
+
+        # Critical: delete work dirs immediately after each task
+        INHERIT += "rm_work"
+
+        # Use all available cores
+        BB_NUMBER_THREADS = "2"
+        PARALLEL_MAKE = "-j 2"
+        EOF
+
+        # Add meta-bazel-toolchain layer to bblayers.conf
+        bitbake-layers add-layer ../../meta-bazel-toolchain
